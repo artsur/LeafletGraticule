@@ -1,4 +1,3 @@
-/* eslint-disable indent,semi */
 /**
  *  Create a Canvas as ImageOverlay to draw the Lat/Lon Graticule,
  *  and show the axis tick label on the edge of the map.
@@ -7,7 +6,7 @@
 
 (function (window, document, undefined) {
 
-    L.LatLngGraticule = L.Layer.extend({
+    L.LeafletGraticule = L.Layer.extend({
         includes: (L.Evented.prototype || L.Mixin.Events),
         options: {
             showLabel: true,
@@ -19,19 +18,33 @@
             lngLineCurved: 0,
             latLineCurved: 0,
             zoomInterval: [
-                {start: 2, end: 2, interval: 40},
-                {start: 3, end: 3, interval: 20},
+                {start: 0, end: 1, interval: 60},
+                {start: 2, end: 3, interval: 30},
                 {start: 4, end: 4, interval: 10},
-                {start: 5, end: 7, interval: 5},
-                {start: 8, end: 20, interval: 1}
+                {start: 5, end: 6, interval: 5},
+                {start: 7, end: 7, interval: 2.5},
+                {start: 8, end: 8, interval: 1},
+                {start: 9, end: 9, interval: 0.5},
+                {start: 10, end: 10, interval: 0.25},
+                {start: 11, end: 11, interval: 0.1},
+                {start: 12, end: 12, interval: 0.05},
+                {start: 13, end: 13, interval: 0.025},
+                {start: 14, end: 14, interval: 0.01},
+                {start: 15, end: 15, interval: 0.005},
+                {start: 16, end: 16, interval: 0.0025},
+                {start: 17, end: 22, interval: 0.001}
             ],
-            sides: ['N', 'S', 'E', 'W']
+            sides: ['N', 'S', 'E', 'W'],
+            showSides: true,
+            showDegree: true,
+            latFormatTickLabel: undefined,
+            lngFormatTickLabel: undefined,
         },
 
         initialize: function (options) {
             L.setOptions(this, options);
 
-            var defaultFontName = 'Verdana';
+            var defaultFontName = 'Arial sans-serif';
             var _ff = this.options.font.split(' ');
             if (_ff.length < 2) {
                 this.options.font += ' ' + defaultFontName;
@@ -61,6 +74,10 @@
                     this.options.lngInterval = this.options.zoomInterval;
                 }
             }
+
+            this._degreeSign = this.options.showDegree ? '°' : '';
+            this._minutesSign = this.options.showDegree ? '′' : '';
+            this._secondsSign = this.options.showDegree ? '″' : '';
         },
 
         onAdd: function (map) {
@@ -76,9 +93,9 @@
             map.on('move', this._reset, this);
             map.on('moveend', this._reset, this);
 
-            if (map.options.zoomAnimation && L.Browser.any3d) {
-                map.on('zoomanim', this._animateZoom, this);
-            }
+            // if (map.options.zoomAnimation && L.Browser.any3d) {
+            //     map.on('zoomanim', this._animateZoom, this);
+            // }
 
             this._reset();
         },
@@ -90,9 +107,9 @@
             map.off('move', this._reset, this);
             map.off('moveend', this._reset, this);
 
-            if (map.options.zoomAnimation) {
-                map.off('zoomanim', this._animateZoom, this);
-            }
+            // if (map.options.zoomAnimation) {
+            //     map.off('zoomanim', this._animateZoom, this);
+            // }
         },
 
         addTo: function (map) {
@@ -108,7 +125,7 @@
 
         bringToFront: function () {
             if (this._canvas) {
-                //this._map._panes.overlayPane.appendChild(this._canvas);
+                this._map._panes.overlayPane.appendChild(this._canvas);
             }
             return this;
         },
@@ -116,7 +133,7 @@
         bringToBack: function () {
             var pane = this._map._panes.overlayPane;
             if (this._canvas) {
-                //pane.insertBefore(this._canvas, pane.firstChild);
+                pane.insertBefore(this._canvas, pane.firstChild);
             }
             return this;
         },
@@ -188,14 +205,16 @@
                 return this.options.latFormatTickLabel(lat);
             }
 
-            // todo: format type of float
-            if (lat < 0) {
-                return '' + (lat*-1) + this.options.sides[1];
+            const numLat = Math.round((this.options.showSides ? (lat > 0 ? lat : (lat*-1)) : lat) * 10000 ) / 10000;
+
+            if (this.options.showSides){
+                if (numLat === 0) return '' + numLat + this._degreeSign;
+                return '' + lat > 0
+                  ? numLat + this._degreeSign + this.options.sides[0]
+                  : numLat + this._degreeSign + this.options.sides[1];
             }
-            else if (lat > 0) {
-                return '' + lat + this.options.sides[0];
-            }
-            return '' + lat;
+
+            return '' + numLat + this._degreeSign;
         },
 
         __format_lng: function(lng) {
@@ -203,23 +222,27 @@
                 return this.options.lngFormatTickLabel(lng);
             }
 
-            // todo: format type of float
-            if (lng > 180) {
-                return '' + (360 - lng) + this.options.sides[3];
+            lng = Math.round(lng * 10000) / 10000 ;
+
+            if (this.options.showSides) {
+                if (lng > 180) {
+                    return '' + (360 - lng) + this._degreeSign + this.options.sides[3];
+                } else if (lng > 0 && lng < 180) {
+                    return '' + lng + this._degreeSign + this.options.sides[2];
+                } else if (lng < 0 && lng > -180) {
+                    return '' + (lng * -1) + this._degreeSign + this.options.sides[3];
+                } else if (lng === -180) {
+                    return '' + (lng * -1) + this._degreeSign;
+                } else if (lng < -180) {
+                    return '' + (360 + lng) + this._degreeSign + this.options.sides[2];
+                }
+                return '' + lng + this._degreeSign;
             }
-            else if (lng > 0 && lng < 180) {
-                return '' + lng + this.options.sides[2];
-            }
-            else if (lng < 0 && lng > -180) {
-                return '' + (lng*-1) + this.options.sides[3];
-            }
-            else if (lng == -180) {
-                return '' + (lng*-1);
-            }
-            else if (lng < -180) {
-                return '' + (360 + lng) + this.options.sides[3];
-            }
-            return '' + lng;
+
+            if (lng > 180) { lng = -360 + lng }
+            else if (lng < -180) { lng = 360 + lng }
+
+            return '' + lng + this._degreeSign;
         },
 
         __calcInterval: function() {
@@ -270,7 +293,7 @@
         __draw: function(label) {
             function _parse_px_to_int(txt) {
                 if (txt.length > 2) {
-                    if (txt.charAt(txt.length-2) == 'p') {
+                    if (txt.charAt(txt.length-2) === 'p') {
                         txt = txt.substr(0, txt.length-2);
                     }
                 }
@@ -524,8 +547,8 @@
 
     });
 
-    L.latlngGraticule = function (options) {
-        return new L.LatLngGraticule(options);
+    L.leafletGraticule = function (options) {
+        return new L.LeafletGraticule(options);
     };
 
 
